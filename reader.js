@@ -235,5 +235,28 @@ $('#file-button').addEventListener('click', () => $('#file-input').click())
 
 const params = new URLSearchParams(location.search)
 const url = params.get('url')
-if (url) open(url).catch(e => console.error(e))
-else dropTarget.style.visibility = 'visible'
+const bookUrl = params.get('bookUrl')
+
+if (bookUrl && bookUrl.startsWith('blob:')) {
+    // Handle blob URL from external sources (like Tampermonkey scripts)
+    fetch(bookUrl)
+        .then(response => response.blob())
+        .then(blob => {
+            // Create a File object from the blob
+            const fileName = params.get('fileName') || 'book.epub'
+            const file = new File([blob], fileName, { 
+                type: blob.type || 'application/epub+zip' 
+            })
+            return open(file)
+        })
+        .catch(error => {
+            console.error('Failed to load book from blob URL:', error)
+            dropTarget.style.visibility = 'visible'
+        })
+} else if (url) {
+    // Handle regular URLs
+    open(url).catch(e => console.error(e))
+} else {
+    // Show drop target if no URL parameters
+    dropTarget.style.visibility = 'visible'
+}
