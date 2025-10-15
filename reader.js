@@ -240,8 +240,8 @@ const url = params.get('url')
 window.addEventListener('message', async (event) => {
     if (event.data && event.data.type === 'open-book-blob') {
         try {
-            console.log('Received book blob from parent window');
-            const { blob, fileName } = event.data;
+            console.log('Received book data from parent window');
+            const { blob, arrayBuffer, fileName, mimeType } = event.data;
             
             // Hide drop target since we're opening a book
             const dropTarget = $('#drop-target');
@@ -249,15 +249,26 @@ window.addEventListener('message', async (event) => {
                 dropTarget.style.display = 'none';
             }
             
-            // Create a File object from the blob
-            const file = new File([blob], fileName, { 
-                type: blob.type || 'application/epub+zip' 
-            });
+            let file;
+            if (arrayBuffer) {
+                // Handle ArrayBuffer format (more reliable for postMessage)
+                console.log('Processing ArrayBuffer data');
+                const bookBlob = new Blob([arrayBuffer], { type: mimeType });
+                file = new File([bookBlob], fileName, { type: mimeType });
+            } else if (blob) {
+                // Handle direct blob format (fallback)
+                console.log('Processing Blob data');
+                file = new File([blob], fileName, { 
+                    type: blob.type || mimeType || 'application/epub+zip' 
+                });
+            } else {
+                throw new Error('No valid book data received');
+            }
             
             await open(file);
             console.log('Book opened successfully:', fileName);
         } catch (error) {
-            console.error('Failed to open book from blob:', error);
+            console.error('Failed to open book from data:', error);
             // Show drop target again on error
             const dropTarget = $('#drop-target');
             if (dropTarget) {
