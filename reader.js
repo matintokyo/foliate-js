@@ -235,25 +235,46 @@ $('#file-button').addEventListener('click', () => $('#file-input').click())
 
 const params = new URLSearchParams(location.search)
 const url = params.get('url')
-const bookUrl = params.get('bookUrl')
 
-if (bookUrl && bookUrl.startsWith('blob:')) {
-    // Handle blob URL from external sources (like Tampermonkey scripts)
-    fetch(bookUrl)
-        .then(response => response.blob())
-        .then(blob => {
+// Listen for blob data from parent window (for Tampermonkey integration)
+window.addEventListener('message', async (event) => {
+    if (event.data && event.data.type === 'open-book-blob') {
+        try {
+            console.log('Received book blob from parent window');
+            const { blob, fileName } = event.data;
+            
+            // Hide drop target since we're opening a book
+            const dropTarget = $('#drop-target');
+            if (dropTarget) {
+                dropTarget.style.display = 'none';
+            }
+            
             // Create a File object from the blob
-            const fileName = params.get('fileName') || 'book.epub'
             const file = new File([blob], fileName, { 
                 type: blob.type || 'application/epub+zip' 
-            })
-            return open(file)
-        })
-        .catch(error => {
-            console.error('Failed to load book from blob URL:', error)
-            dropTarget.style.visibility = 'visible'
-        })
-} else if (url) {
+            });
+            
+            await open(file);
+            console.log('Book opened successfully:', fileName);
+        } catch (error) {
+            console.error('Failed to open book from blob:', error);
+            // Show drop target again on error
+            const dropTarget = $('#drop-target');
+            if (dropTarget) {
+                dropTarget.style.visibility = 'visible';
+            }
+        }
+    }
+});
+
+// Send ready signal to parent window
+window.addEventListener('load', () => {
+    if (window.parent !== window) {
+        window.parent.postMessage({ type: 'reader-ready' }, '*');
+    }
+});
+
+if (url) {
     // Handle regular URLs
     open(url).catch(e => console.error(e))
 } else {
